@@ -158,6 +158,107 @@ double** buildMatrixT(double **matrixU, int n, int k){
     }
     return t;
 }
+
+//the method returns an array which contains: i,j,c,s. in this order
+// a is a symmetric matrix of size nxn
+//which represent matrix P
+double * buildMatrixP(double **a, int n){
+    //find Aij the maximum off-diagonal element of matrix A
+    int l,m,i,j;
+    double max = fabs(a[0][0]);
+    i=0;
+    j=0;
+    for(l=0;l<n;l++){
+        for(m=l+1;m++;m<n)
+            if(fabs(a[l][m])>max){
+                i=l;
+                j=m;
+                max = fabs(a[i][j]);
+            }
+        }
+
+    //calculate c,s,t
+    double teta = (a[j][j]-a[i][i])/(2*a[i][j]);
+    int sign = teta>=0 ? 1 : -1;
+    double t = sign / (fabs(teta)+sqrt((teta*teta) + 1));
+    double c = 1 / sqrt((t*t) + 1);
+    double s = t*c;
+    //arr represents matrix P
+    double* arr = malloc(sizeof(double)*4);
+    arr[0] = i;
+    arr[1] = j;
+    arr[2] = c;
+    arr[3] = s;
+    return arr;
+
+}
+//this method calculates A' = P^t*A*P
+void diagonalStep(double **a, double *p, int n){
+    //TODO:not finished
+    int i,j,m;
+    double c,s;
+    double *rowi,*rowj;//row i and row j of A'
+    //for convenient
+    i = (int)p[0];
+    j = (int)p[1];
+    c =p[2];
+    s=p[3];
+    //memory allocation
+    rowi = calloc(n,sizeof(double));
+    rowj = calloc(n,sizeof(double));
+
+    //calc rowi and rowj
+    for(m=0;m<n;m++){
+        if(m == i){
+            rowi[i] = (pow(c,2)*a[i][i]) + (pow(s,2)*a[j][j]) - (2*s*c*a[i][j]);
+        }
+        else if(m==j){
+            rowj[m] = (pow(s,2)*a[i][i]) + (pow(c,2)*a[j][j]) - (2*s*c*a[i][j]);
+        }
+        rowi[m] = (c*a[m][i]) -(s*a[m][j]);
+        rowj[m] = (c*a[m][j]) + (s*a[m][i]);
+
+    }
+
+
+}
+//calculates A*P
+//the only changes in A are i-th and j-th columns
+//TODO: any optimization possible? maybe A transpose?
+void rotationMultiply(double **a, double* p,int n){
+    int m,l,i,j;
+    double coli,colj;
+    i = (int)p[0];
+    j=(int)p[1];
+    for(m=0;m<n;m++){
+        //p[2] = c
+        //p[3] = s
+        coli = a[m][i]*p[2] - a[m][j]*p[3];
+        colj = a[m][i]*p[3] + a[m][j]*p[2];
+        a[m][i] = coli;
+        a[m][j] = colj;
+    }
+}
+//method build 2-d matrix P from array that represent P
+double **buildPfromArray(double *p, int n){
+    int i,j,coli,colj;
+    double **mat = malloc(sizeof(double*)*n);
+    coli = (int)p[0];
+    colj = (int)p[1];
+    for(i=0;i<n;i++){
+        mat[i] = calloc(n,sizeof(double ));
+        mat[i][i] = 1;
+        if(i == coli){
+            mat[i][i] = p[2];//c
+            mat[i][colj] = p[3];//s
+        }
+        else if(i == colj){
+            mat[i][coli] = -p[3];//-s
+            mat[i][colj] = p[2];//c
+        }
+    }
+    return mat;
+}
 //double multiply(double**a, double **b,int r1,int c1, int r2,int c2){
 //    assert(r1 == c2); // number of a' rows equals number of  b's columns
 //    int i,j;
