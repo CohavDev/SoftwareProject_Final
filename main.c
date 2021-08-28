@@ -6,6 +6,13 @@
 double **buildMatrixW(double **);
 double **computeMatrixD(double **);
 double calcWeight(double*, double*);
+double** buildMatrixT(double **, int, int);
+double * buildMatrixP(double **, int);
+void diagonalStep(double **, double *, int);
+void rotationMultiply(double **, double*,int);
+double **buildPfromArray(double *, int);
+double ** jacobiAlgorithm(double **, int);
+
 int n ,k,coordnum;
 int main() {
     printf("Hello, World!\n");
@@ -194,7 +201,6 @@ double * buildMatrixP(double **a, int n){
 }
 //this method calculates A' = P^t*A*P
 void diagonalStep(double **a, double *p, int n){
-    //TODO:not finished
     int i,j,m;
     double c,s;
     double *rowi,*rowj;//row i and row j of A'
@@ -211,16 +217,27 @@ void diagonalStep(double **a, double *p, int n){
     for(m=0;m<n;m++){
         if(m == i){
             rowi[i] = (pow(c,2)*a[i][i]) + (pow(s,2)*a[j][j]) - (2*s*c*a[i][j]);
+            rowj[i] = 0;
         }
         else if(m==j){
             rowj[m] = (pow(s,2)*a[i][i]) + (pow(c,2)*a[j][j]) - (2*s*c*a[i][j]);
+            rowi[j] = 0;
         }
-        rowi[m] = (c*a[m][i]) -(s*a[m][j]);
-        rowj[m] = (c*a[m][j]) + (s*a[m][i]);
+        else{
+            rowi[m] = (c*a[m][i]) -(s*a[m][j]);
+            rowj[m] = (c*a[m][j]) + (s*a[m][i]);
+        }
 
     }
-
-
+    //update matrix A to A'
+    //update row i-th and j-th
+    a[i] = rowi;
+    a[j] = rowj;
+    //update columns i-th and j-th. Remember A is symmetric
+    for(m=0;m<n;m++){
+        a[m][j] = rowj[m];
+        a[m][i] = rowi[m];
+    }
 }
 //calculates A*P
 //the only changes in A are i-th and j-th columns
@@ -258,6 +275,15 @@ double **buildPfromArray(double *p, int n){
         }
     }
     return mat;
+}
+double ** jacobiAlgorithm(double **a, int n){
+    //TODO: not done
+//    int converged = 0;
+//    while(!converged){
+//        double *p1 = buildMatrixP(a, n);
+//
+//        diagonalStep(a,p1,n);
+//    }
 }
 //double multiply(double**a, double **b,int r1,int c1, int r2,int c2){
 //    assert(r1 == c2); // number of a' rows equals number of  b's columns
