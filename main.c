@@ -1,25 +1,85 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <math.h>
 
-double **buildMatrixW(double **);
-double **computeMatrixD(double **);
-double calcWeight(double*, double*);
+double **buildMatrixW(double **, int, int);
+double **computeMatrixD(double **,int);
+double calcWeight(double*, double*, int);
 double** buildMatrixT(double **, int, int);
 double * buildMatrixP(double **, int);
 void diagonalStep(double **, double *, int);
 void rotationMultiply(double **, double*,int);
 double **buildPfromArray(double *, int);
 double ** jacobiAlgorithm(double **, int);
+void printMatrix(double**, int,int);
 
-int n ,k,coordnum;
+void mainFunction(int argc, char *argv){
+    //TODO:continue method
+    int k = (int)argv[1];
+    if(k == 0){
+        //TODO:call eigengap heuristic
+    }
+
+    char *goal = argv[2];
+    if(strcmp(goal, "spk") == 0){
+        //spectralKmeans();
+    }
+    if(strcmp(goal, "wam") == 0){
+//        double **matW = buildMatrixW()
+//        printMatrix(matW,n,n)
+    }
+    if(strcmp(goal, "ddg") == 0){
+//        double **matD = computeMatrixD(points, n);
+//            printMatrix(matD, n, n);
+    }
+    if(strcmp(goal, "lnorm") == 0){
+        //print lnorm
+    }
+    if(strcmp(goal, "jacobi") == 0){
+        //jacobiAlgorithm()
+    }
+
+}
+void spectralkmeans(double** points, int n, int d){
+    double **matW = buildMatrixW(points, d, n);
+    //TODO:continue here
+}
 int main() {
-    printf("Hello, World!\n");
-    return 0;
+    //testing
+    int i,j;
+    double arr[10][2] = {
+            {-5.056, 11.011},
+            {-6.409, -7.962},
+            {5.694, 9.606},
+            {6.606, 9.396},
+            {-6.772, -5.727},
+            {-4.498, 8.399},
+            {-4.985, 9.076},
+            {4.424, 8.819},
+            {-7.595, -7.211},
+            {-4.198, 8.371}};
+    double **points = malloc(10*sizeof(double));
+    for(i=0;i<10;i++){
+        points[i] = malloc(2*sizeof (double));
+        for(j=0;j<2;j++){
+            points[i][j] = arr[i][j];
+        }
+    }
+    //the weighted matrix test
+    double **matW = buildMatrixW(points,2,10);
+    printf("\nMatrix W:\n");
+    printMatrix(matW,10,10);
+    //the diagonal degree matrix test
+    double **matD = computeMatrixD(matW,10);
+    printf("\nMatrix D:\n");
+    printMatrix(matD, 10,10);
+
+    return 1;
 }
 //this function builds the weighted matrix W
-double **buildMatrixW(double **points){
+double **buildMatrixW(double **points, int d,int n){
     int i, j;
     double tmp;
     //allocate memory for matrix Wnxn
@@ -30,8 +90,9 @@ double **buildMatrixW(double **points){
     //calculate matrix W
     for(i=0;i<n;i++){
         //each loop calculates row of upper diagonal and copies it to bottom
-        for(j=i;j<n;j++){
-            tmp = calcWeight(points[i],points[j]);//TODO:check calcweight() correctness
+        w[i][i] = 0;
+        for(j=i+1;j<n;j++){
+            tmp = calcWeight(points[i],points[j], d);//TODO:check calcweight() correctness
             w[i][j] = tmp;
             w[j][i] = tmp; // matrix is symmetric
             //TODO: anyway for complexity improvements?
@@ -40,8 +101,7 @@ double **buildMatrixW(double **points){
     return w;
 }
 //this function compute the diagonal matrix D
-double **computeMatrixD(double **w){
-    //TODO:should create method for matrix allocation?
+double **computeMatrixD(double **w, int n){
     //TODO: anyway for complexity improvements?
     int i, j;
     double tmp;
@@ -60,7 +120,7 @@ double **computeMatrixD(double **w){
     return d;
 }
 
-double calcWeight(double *a, double*b){
+double calcWeight(double *a, double*b, int coordnum){
     //l2 norm calculation
     double sum = 0;
     int i;
@@ -148,7 +208,7 @@ double** buildMatrixT(double **matrixU, int n, int k){
     for(i=0;i<n;i++){
         t[i] = malloc(k*sizeof(double));
     }
-    //calc the normalizer for each row
+    //calc the 'normalizer' for each row
     double *norm = malloc(n*sizeof(double));
     for(i=0;i<n;i++){
         sum = 0;
@@ -278,12 +338,30 @@ double **buildPfromArray(double *p, int n){
 }
 double ** jacobiAlgorithm(double **a, int n){
     //TODO: not done
-//    int converged = 0;
-//    while(!converged){
-//        double *p1 = buildMatrixP(a, n);
-//
-//        diagonalStep(a,p1,n);
-//    }
+    int converged = 0;
+    double *p = buildMatrixP(a, n);//p1
+    double **matV = buildPfromArray(p,n);//matrix V init (V = p1)
+    diagonalStep(a, p, n);//calc A = A'
+    //TODO:check convergence here too
+    while(!converged){
+        p = buildMatrixP(a, n); //pi
+        rotationMultiply(matV, p, n);//V*pi
+        diagonalStep(a,p,n);//calc A'
+        converged = 1;//TODO:need to update according to convergence rule
+    }
+    return NULL;//TODO: need to output/return eigenvalues and eigenvectors
+}
+void printMatrix(double **a, int rows,int columns){
+    int i,j;
+    for(i=0;i<rows;i++){
+        if(i!=0){
+            printf("\n");
+        }
+        for(j=0;j<columns-1;j++){
+            printf("%.3lf,",a[i][j]);//TODO:change to .4f?
+        }
+        printf("%.3lf",a[i][columns-1]);
+    }
 }
 //double multiply(double**a, double **b,int r1,int c1, int r2,int c2){
 //    assert(r1 == c2); // number of a' rows equals number of  b's columns
