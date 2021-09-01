@@ -7,14 +7,18 @@
 double **buildMatrixW(double **, int, int);
 double **computeMatrixD(double **,int);
 double calcWeight(double*, double*, int);
+void multDiagonalLeft(double**, double**, int);
+void multDiagonalRight(double**, double**, int);
+double **buildMatrixLnorm(double **points, int d, int n);
 double** buildMatrixT(double **, int, int);
 double * buildMatrixP(double **, int);
-void diagonalStep(double **, double *, int);
+double diagonalStep(double **, double *, int, double);
 void rotationMultiply(double **, double*,int);
 double **buildPfromArray(double *, int);
 double ** jacobiAlgorithm(double **, int);
 void printMatrix(double**, int,int);
 
+//TODO: should replace this this main()
 void mainFunction(int argc, char *argv){
     //TODO:continue method
     int k = (int)argv[1];
@@ -71,11 +75,19 @@ int main() {
     double **matW = buildMatrixW(points,2,10);
     printf("\nMatrix W:\n");
     printMatrix(matW,10,10);
+
     //the diagonal degree matrix test
     double **matD = computeMatrixD(matW,10);
     printf("\nMatrix D:\n");
     printMatrix(matD, 10,10);
 
+    //lnorm matrix test
+    double **matLNorm = buildMatrixLnorm(points, 2, 10);
+    printf("\nMatrix Lnorm: \n");
+    printMatrix(matLNorm, 10, 10);
+
+    //jacobi test
+    jacobiAlgorithm(matLNorm, 10);
     return 1;
 }
 //this function builds the weighted matrix W
@@ -199,6 +211,63 @@ void mergeSort(int arr[], int l, int r)
         merge(arr, l, m, r);
     }
 }
+//multiply D*A
+void multDiagonalLeft(double **diagonal, double **a, int n){
+    int i, j;
+    double multiplier;
+    for(i=0;i<n;i++){
+        multiplier = diagonal[i][i];
+        for(j=0;j<n;j++){
+            a[i][j] = a[i][j] * multiplier;
+        }
+    }
+}
+//multiply A*D
+void multDiagonalRight(double **a, double **diagonal,int n) {
+
+    int i,j;
+    double multiplier;
+    for (j=0; j<n;j++) {
+        multiplier = diagonal[j][j];
+        for (i=0;i<n;i++) {
+            a[i][j] = a[i][j] * multiplier;
+        }
+    }
+
+}
+
+//calculate matrix Lnorm
+double **buildMatrixLnorm(double **points, int d, int n) {
+    double **matrixW = buildMatrixW(points, d, n);
+    double **matrixD = computeMatrixD(matrixW, n);
+    int i, j;
+    double temp;
+    //calc D^-0.5
+    for (i = 0; i < n; i++) {
+        temp = 1 / sqrt(matrixD[i][i]);
+        matrixD[i][i] = temp;
+    }
+    multDiagonalLeft(matrixD, matrixW, n);
+    multDiagonalRight(matrixW, matrixD, n);
+    for(i=0;i<n;i++){
+        for(j=0;j<n;j++){
+            temp = matrixW[i][j];
+            if(i==j){
+                matrixW[i][j] = 1 - temp;
+            }
+            else{
+                matrixW[i][j] = 0 - temp;
+            }
+        }
+    }
+    //free memory of matrixD
+    for(i=0;i<n;i++){
+        free(matrixD[i]);
+    }
+    free(matrixD);
+    //return lnrom
+    return matrixW;//lnorm was insert into matrixW
+}
 //build the normalized matrix T
 double** buildMatrixT(double **matrixU, int n, int k){
     //allocate memory for matrix Tnxk
@@ -232,11 +301,11 @@ double** buildMatrixT(double **matrixU, int n, int k){
 double * buildMatrixP(double **a, int n){
     //find Aij the maximum off-diagonal element of matrix A
     int l,m,i,j;
-    double max = fabs(a[0][0]);
+    double max = fabs(a[0][1]);
     i=0;
     j=0;
     for(l=0;l<n;l++){
-        for(m=l+1;m++;m<n)
+        for(m=l+1;m<n;m++)
             if(fabs(a[l][m])>max){
                 i=l;
                 j=m;
@@ -260,9 +329,10 @@ double * buildMatrixP(double **a, int n){
 
 }
 //this method calculates A' = P^t*A*P
-void diagonalStep(double **a, double *p, int n){
-    int i,j,m;
-    double c,s;
+double diagonalStep(double **a, double *p, int n, double convergenceValueA){
+    int i, j, m;
+    double c, s, newConvergenceValue, temp,roottemp;//TODO:delete roottemp
+    double addToSum, substructFromSum;
     double *rowi,*rowj;//row i and row j of A'
     //for convenient
     i = (int)p[0];
@@ -272,22 +342,31 @@ void diagonalStep(double **a, double *p, int n){
     //memory allocation
     rowi = calloc(n,sizeof(double));
     rowj = calloc(n,sizeof(double));
-
+    roottemp = pow(convergenceValueA, 2);//TODO:delete later
+    addToSum = 0;
+    substructFromSum = 0;
+    newConvergenceValue = pow(convergenceValueA, 2);//init off(A')^2
     //calc rowi and rowj
     for(m=0;m<n;m++){
         if(m == i){
             rowi[i] = (pow(c,2)*a[i][i]) + (pow(s,2)*a[j][j]) - (2*s*c*a[i][j]);
             rowj[i] = 0;
         }
-        else if(m==j){
-            rowj[m] = (pow(s,2)*a[i][i]) + (pow(c,2)*a[j][j]) - (2*s*c*a[i][j]);
-            rowi[j] = 0;
-        }
         else{
-            rowi[m] = (c*a[m][i]) -(s*a[m][j]);
-            rowj[m] = (c*a[m][j]) + (s*a[m][i]);
+            if(m==j){
+                rowj[m] = (pow(s,2)*a[i][i]) + (pow(c,2)*a[j][j]) - (2*s*c*a[i][j]);
+                rowi[j] = 0;
+            }
+            else{
+                rowi[m] = (c*a[m][i]) -(s*a[m][j]);
+                rowj[m] = (c*a[m][j]) + (s*a[m][i]);
+                //calc off(A')^2
+                temp = 2*(pow(rowi[m], 2)+ pow(rowj[m], 2));
+                addToSum += 2*(pow(rowi[m], 2)+ pow(rowj[m], 2));//counted twice for columns also
+                substructFromSum += 2 * (pow(a[i][m], 2) + pow(a[j][m], 2));//substruct A's elements
+                newConvergenceValue = newConvergenceValue + addToSum - substructFromSum;
+            }
         }
-
     }
     //update matrix A to A'
     //update row i-th and j-th
@@ -298,6 +377,8 @@ void diagonalStep(double **a, double *p, int n){
         a[m][j] = rowj[m];
         a[m][i] = rowi[m];
     }
+    newConvergenceValue = sqrt(newConvergenceValue);
+    return newConvergenceValue; // return off(A')^2
 }
 //calculates A*P
 //the only changes in A are i-th and j-th columns
@@ -336,19 +417,48 @@ double **buildPfromArray(double *p, int n){
     }
     return mat;
 }
+//calculate convergence off(A)^2 if matrix a
+double calcConvergenceValue(double **a, int n){
+    double squareSum;
+    int i, j;
+    squareSum = 0;
+    for(i=0;i<n;i++){
+        for(j=0;j<n;j++){
+            if(i!=j){
+                squareSum+= pow(a[i][j], 2);
+            }
+        }
+    }
+    return sqrt(squareSum);
+}
+//return 1 if converged , 0 otherwise
+int isConverged(double n1 , double n2, double eps){
+    if(n1 - n2 <= eps){ // TODO:can it be negative?
+        return 1;
+    }
+    return 0;
+}
 double ** jacobiAlgorithm(double **a, int n){
     //TODO: not done
-    int converged = 0;
+    int converged;//0 False, 1 True
+    int iters = 0;//number of iterations
+    double epsilon = pow(10,-15);
     double *p = buildMatrixP(a, n);//p1
+    double convergenceValueA = calcConvergenceValue(a, n);
     double **matV = buildPfromArray(p,n);//matrix V init (V = p1)
-    diagonalStep(a, p, n);//calc A = A'
-    //TODO:check convergence here too
-    while(!converged){
+    double newConvergenceValue = diagonalStep(a, p, n, convergenceValueA);//calc A = A'
+//    newConvergenceValue = calcConvergenceValue(a, n);
+    converged = isConverged(convergenceValueA, newConvergenceValue, epsilon);//checking convergence
+    while((converged == 0) && iters < 100){
+        convergenceValueA = newConvergenceValue;
         p = buildMatrixP(a, n); //pi
         rotationMultiply(matV, p, n);//V*pi
-        diagonalStep(a,p,n);//calc A'
-        converged = 1;//TODO:need to update according to convergence rule
+        newConvergenceValue = diagonalStep(a,p,n, convergenceValueA);//calc A'
+        converged = isConverged(convergenceValueA, newConvergenceValue, epsilon);//checking convergence
+        iters++;
     }
+    printf("\nMatrix A: \n");
+    printMatrix(a, n, n);
     return NULL;//TODO: need to output/return eigenvalues and eigenvectors
 }
 void printMatrix(double **a, int rows,int columns){
@@ -363,8 +473,3 @@ void printMatrix(double **a, int rows,int columns){
         printf("%.3lf",a[i][columns-1]);
     }
 }
-//double multiply(double**a, double **b,int r1,int c1, int r2,int c2){
-//    assert(r1 == c2); // number of a' rows equals number of  b's columns
-//    int i,j;
-//    for(i=0;i<)
-//}
