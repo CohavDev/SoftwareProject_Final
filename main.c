@@ -15,6 +15,7 @@ double * buildMatrixP(double **, int);
 double diagonalStep(double **, double *, int, double);
 void rotationMultiply(double **, double*,int);
 double **buildPfromArray(double *, int);
+double calcConvergenceValue(double**, int);
 double ** jacobiAlgorithm(double **, int);
 void printMatrix(double**, int,int);
 
@@ -88,6 +89,29 @@ int main() {
 
     //jacobi test
     jacobiAlgorithm(matLNorm, 10);
+
+    /**
+    //mine test
+    int i,j;
+    double arr2[4][2] = {
+            {4, 7},
+            {7, 11},
+            {0, 6},
+            {1,2}};
+    double **points2 = malloc(4*sizeof(double*));
+    for(i=0;i<4;i++){
+        points2[i] = malloc(2*sizeof (double));
+        for(j=0;j<2;j++){
+            points2[i][j] = arr2[i][j];
+        }
+    }
+    printf("\nTest 2: \n");
+    double **matLNorm = buildMatrixLnorm(points2, 2, 4);
+    printf("\nLnorm: \n");
+    printMatrix(matLNorm, 4, 4);
+    jacobiAlgorithm(matLNorm, 4);
+//    printMatrix(matLNorm,4,4);
+     **/
     return 1;
 }
 //this function builds the weighted matrix W
@@ -303,7 +327,7 @@ double * buildMatrixP(double **a, int n){
     int l,m,i,j;
     double max = fabs(a[0][1]);
     i=0;
-    j=0;
+    j=1;
     for(l=0;l<n;l++){
         for(m=l+1;m<n;m++)
             if(fabs(a[l][m])>max){
@@ -331,8 +355,8 @@ double * buildMatrixP(double **a, int n){
 //this method calculates A' = P^t*A*P
 double diagonalStep(double **a, double *p, int n, double convergenceValueA){
     int i, j, m;
-    double c, s, newConvergenceValue, temp,roottemp;//TODO:delete roottemp
-    double addToSum, substructFromSum;
+    double c, s, newConvergenceValue;
+    double addToSum, subtractFromSum;
     double *rowi,*rowj;//row i and row j of A'
     //for convenient
     i = (int)p[0];
@@ -342,15 +366,14 @@ double diagonalStep(double **a, double *p, int n, double convergenceValueA){
     //memory allocation
     rowi = calloc(n,sizeof(double));
     rowj = calloc(n,sizeof(double));
-    roottemp = pow(convergenceValueA, 2);//TODO:delete later
     addToSum = 0;
-    substructFromSum = 0;
-    newConvergenceValue = pow(convergenceValueA, 2);//init off(A')^2
+    subtractFromSum = 0;
     //calc rowi and rowj
     for(m=0;m<n;m++){
         if(m == i){
             rowi[i] = (pow(c,2)*a[i][i]) + (pow(s,2)*a[j][j]) - (2*s*c*a[i][j]);
             rowj[i] = 0;
+            subtractFromSum += 2*pow(a[j][i], 2);
         }
         else{
             if(m==j){
@@ -361,13 +384,12 @@ double diagonalStep(double **a, double *p, int n, double convergenceValueA){
                 rowi[m] = (c*a[m][i]) -(s*a[m][j]);
                 rowj[m] = (c*a[m][j]) + (s*a[m][i]);
                 //calc off(A')^2
-                temp = 2*(pow(rowi[m], 2)+ pow(rowj[m], 2));
                 addToSum += 2*(pow(rowi[m], 2)+ pow(rowj[m], 2));//counted twice for columns also
-                substructFromSum += 2 * (pow(a[i][m], 2) + pow(a[j][m], 2));//substruct A's elements
-                newConvergenceValue = newConvergenceValue + addToSum - substructFromSum;
+                subtractFromSum += 2 * (pow(a[i][m], 2) + pow(a[j][m], 2));//subtract A's elements
             }
         }
     }
+    newConvergenceValue = convergenceValueA + addToSum - subtractFromSum;
     //update matrix A to A'
     //update row i-th and j-th
     a[i] = rowi;
@@ -377,7 +399,6 @@ double diagonalStep(double **a, double *p, int n, double convergenceValueA){
         a[m][j] = rowj[m];
         a[m][i] = rowi[m];
     }
-    newConvergenceValue = sqrt(newConvergenceValue);
     return newConvergenceValue; // return off(A')^2
 }
 //calculates A*P
@@ -429,7 +450,7 @@ double calcConvergenceValue(double **a, int n){
             }
         }
     }
-    return sqrt(squareSum);
+    return squareSum;
 }
 //return 1 if converged , 0 otherwise
 int isConverged(double n1 , double n2, double eps){
@@ -446,14 +467,25 @@ double ** jacobiAlgorithm(double **a, int n){
     double *p = buildMatrixP(a, n);//p1
     double convergenceValueA = calcConvergenceValue(a, n);
     double **matV = buildPfromArray(p,n);//matrix V init (V = p1)
+    printf("\nMatrix A: \n");
+    printMatrix(a,n,n);
     double newConvergenceValue = diagonalStep(a, p, n, convergenceValueA);//calc A = A'
+    printf("\nMatrix A': \n");
+    printMatrix(a,n,n);
 //    newConvergenceValue = calcConvergenceValue(a, n);
     converged = isConverged(convergenceValueA, newConvergenceValue, epsilon);//checking convergence
     while((converged == 0) && iters < 100){
         convergenceValueA = newConvergenceValue;
+        printf("\nMatrix A: \n");
+        printMatrix(a,n,n);
         p = buildMatrixP(a, n); //pi
+        printf("\ni = %f,  j = %f\n",p[0],p[1]);
         rotationMultiply(matV, p, n);//V*pi
         newConvergenceValue = diagonalStep(a,p,n, convergenceValueA);//calc A'
+        printf("Convergence Diffrence = %f",convergenceValueA-newConvergenceValue);
+//        newConvergenceValue = calcConvergenceValue(a, n);
+        printf("\nMatrix A': \n");
+        printMatrix(a,n,n);
         converged = isConverged(convergenceValueA, newConvergenceValue, epsilon);//checking convergence
         iters++;
     }
