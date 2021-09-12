@@ -7,6 +7,7 @@
 
 void spectralKmeans(double **points, int n, int d, int k){
     double** mat;
+    Cluster **clusterArray;
     int i;
     mat = buildMatrixLnorm(points,d,n);
     mat = jacobiAlgorithm(mat, n);
@@ -14,8 +15,82 @@ void spectralKmeans(double **points, int n, int d, int k){
     //compute matrix T
     mat = buildMatrixT(mat, n,k);
     //call original Kmeans algorithm from HW1 on mat(matrix T) TODO:finish the call and print
+    clusterArray = initClusters(mat, n, k);
+    kMeans(mat,clusterArray,n,k);
+    printMeans(clusterArray,k);
+    freeMem(mat,clusterArray,n,k);//free mat and clusterArray
 
 
+}
+void initCmd(char* argv[]){
+    int k;
+    char *goal, *fileName;
+    k = strtol(argv[1],NULL,10);
+    goal = argv[2];
+    fileName = argv[3];
+    initFromFile(k,fileName,goal);
+}
+void initFromFile(int k, char* fileName,char *goal){
+    /*find paramater d with first line*/
+    int n,d;
+    char *str;
+    double number;
+    int i,j,size,reached_end;
+    double *arr;
+    double **vecArray;
+    const int LINE_MAX_LENGTH = 1000; /* according to forum*/
+    char* line;
+    char buffer[LINE_MAX_LENGTH];
+    FILE *fp = fopen(fileName,"r");
+    if(fp == NULL){
+        printf("\nAn Error Has Occured\n");
+        assert(fp!=NULL);
+    }
+    d = 1;
+    n = 0;
+    //gets d , num of coordinates of each vector/point
+    line = fgets(buffer,LINE_MAX_LENGTH,fp);
+    str = strtok(line,",");
+    while(str!=NULL){
+        str = strtok(NULL,",");
+        d++;
+    }
+    rewind(fp);
+    size = 50;
+    vecArray = malloc(sizeof(double*) * size); /*init to size of size*/
+    assert(vecArray !=NULL);
+    reached_end = 0; /*"False"*/
+
+    /*Read vectors from file*/
+    while (reached_end == 0) {
+        arr  = malloc(sizeof(double) * d);  /*array of coordinates*/
+        if(n == size){
+            vecArray = realloc(vecArray, (2*size*sizeof(double*)));
+            assert(vecArray !=NULL);
+            size += size;
+        }
+        line = fgets(buffer,LINE_MAX_LENGTH,fp);
+        str = strtok(line,",");
+        for (i = 0; i < d; i++) {
+            number = atof(str);
+            if(feof(fp)){
+                reached_end = 1;
+                break;
+            }
+            arr[i] = number;
+            str = strtok(NULL, ",");
+
+        }
+        if(reached_end != 1){
+            n++;
+            vecArray[n-1] = arr;
+        }
+
+    }
+    assert(k >= 0 && k <= n);
+    vecArray = realloc(vecArray, sizeof(double*) * n);
+    assert(vecArray != NULL);
+    handleGoal(vecArray,n,d,k,goal,1);
 }
 //sort the eigenvalues and its matching eigenvectors
 //matV is (n+1) x n
@@ -30,17 +105,30 @@ double** buildMatrixU(double** matV, int n, int k){
     }
     //sort structArray with eigenvalue of each struct as a key
     qsort(structArray,n,sizeof(Eigen),compare);
-    printf("\nSorted EigenValues: \n");
-    for(i=0;i<n;i++){
-        printf("%f, ",structArray[i].eigenValue);
-    }
-    printf("\n");
+//    printf("\nSorted EigenValues: \n");
+//    for(i=0;i<n;i++){
+//        printf("%f, ",structArray[i].eigenValue);
+//    }
+//    printf("\n");
     //determine k
     if(k == 0){
         k = determineK(structArray, n);
     }
     //build matrix U
     double **matrixU = malloc(n*sizeof(double*));
+
+//    for(i=0;i<n;i++){
+//        matrixU[i] = malloc(k*sizeof(double));
+//    }
+//    for(j=0;j<k;j++){
+//        if(j==1){
+//            printf("hey");
+//        }
+//        index = structArray[j].indexOfVector;
+//        for(i=0;i<n;i++){
+//            matrixU[i][j] = matV[i][index];
+//        }
+//    }
     for(i=0;i<n;i++){
         matrixU[i] = malloc(k*sizeof(double));
         for(j=0;j<k;j++){
@@ -53,6 +141,8 @@ double** buildMatrixU(double** matV, int n, int k){
         free(matV[i]);
     }
     free(matV);
+    //free sturctArray
+    free(structArray);
     return matrixU;
 
 }
@@ -60,13 +150,18 @@ double** buildMatrixU(double** matV, int n, int k){
 int compare(const void *a, const void *b){
     Eigen *s1 = (Eigen*)a;
     Eigen *s2 = (Eigen*)b;
-    return (int)(s1->eigenValue - s2->eigenValue);
+    double result = s1->eigenValue - s2->eigenValue;
+    if(result == 0){
+        return 0;
+    }
+    return (result>0) ? 1 : -1;
 }
 //TODO: should replace this this main()
 //print: 1 - called from C. 0 - called from Python via module
 double** handleGoal(double **points, int n, int d, int k, char *goal, int print){
     //TODO:continue method
     double **mat;
+    int i;
 
     if(strcmp(goal, "spk") == 0){
         spectralKmeans(points,n,d,k);
@@ -82,12 +177,34 @@ double** handleGoal(double **points, int n, int d, int k, char *goal, int print)
         mat = buildMatrixLnorm(points, d, n);
     }
     if(strcmp(goal, "jacobi") == 0){
-        //jacobiAlgorithm();
-        //TODO:complete after jacobi is ready
+        mat = jacobiAlgorithm(points,n);
     }
+    if(print == 1){
+        //called from C
+        //free points
+        for(i=0;i<n;i++){
+            free(points[i]);
+        }
+        free(points);
+    }
+
     //print or return
     if(print == 1){
-        printMatrix(mat,n,n);
+        if(strcmp(goal, "jacobi") == 0){
+            printJacobi(mat,n);
+            //free
+            for(i=0;i<n+1;i++){
+                free(mat[i]);
+            }
+        }
+        else{
+            printMatrix(mat,n,n);
+            //free
+            for(i=0;i<n;i++){
+                free(mat[i]);
+            }
+        }
+        free(mat);
         return NULL;
     }
     else{
@@ -95,11 +212,26 @@ double** handleGoal(double **points, int n, int d, int k, char *goal, int print)
         return mat;
     }
 }
-void spectralkmeans(double** points, int n, int d){
-    double **matW = buildMatrixW(points, d, n);
-    //TODO:continue here
+void printJacobi(double** matrix, int n){
+    //print eigenvalues
+    int i,j;
+    for(i=0;i<n-1;i++){//TODO: change to .4f
+        printf("%.4f,",matrix[n][i]);
+    }
+    printf("%.4f\n",matrix[n][n-1]);
+    //print eigenvectors
+    for(j=0;j<n;j++){
+        for(i=0;i<n-1;i++){
+            printf("%.4f,",matrix[i][j]);
+        }
+        printf("%.4f\n",matrix[n-1][j]);
+    }
+
 }
-int main() {
+int main(int argc, char* argv[]){
+    initCmd(argv);
+}
+int test() {
     //testing
     int i,j;
     double arr[10][2] = {
@@ -139,7 +271,14 @@ int main() {
     double** matJacobi = jacobiAlgorithm(matLNorm, 10);
     double** matrixU = buildMatrixU(matJacobi, 10, 0);
     printf("\nMatrix U:\n ");
-    printMatrix(matrixU, 10,10);
+    printMatrix(matrixU, 10,2);
+    printf("\n");
+    printf("\nMatrix T:\n ");
+    printMatrix(buildMatrixT(matrixU,10,2), 10,2);
+    printf("\n");
+    printf("\ntest handleGoal: \n");
+    handleGoal(points,10,2,2,"jacobi",1);
+    handleGoal(points,10,2,2,"spk",1);
     return 1;
 }
 //this function builds the weighted matrix W
@@ -318,7 +457,7 @@ double **buildMatrixLnorm(double **points, int d, int n) {
     }
     free(matrixD);
     //return lnrom
-    return matrixW;//lnorm was insert into matrixW
+    return matrixW;//lnorm was insert into matrixW, free is not here
 }
 //build the normalized matrix T
 double** buildMatrixT(double **matrixU, int n, int k){
@@ -344,6 +483,13 @@ double** buildMatrixT(double **matrixU, int n, int k){
             t[i][j] = matrixU[i][j] / norm[i];
         }
     }
+    //free norm
+    free(norm);
+    //free matrixU
+    for(i=0;i<n;i++){
+        free(matrixU[i]);
+    }
+    free(matrixU);
     return t;
 }
 //the eigengap hueristic
@@ -365,10 +511,10 @@ int determineK(Eigen* structArray, int n) {
     return argi;
 }
 
-//the method returns an array which contains: i,j,c,s. in this order
+//the method saves to 'arr' an array which contains: i,j,c,s. in this order
 // a is a symmetric matrix of size nxn
 //which represent matrix P
-double * buildMatrixP(double **a, int n){
+void buildMatrixP(double **a, int n, double *arr){
     //find Aij the maximum off-diagonal element of matrix A
     int l,m,i,j;
     double max = fabs(a[0][1]);
@@ -390,12 +536,11 @@ double * buildMatrixP(double **a, int n){
     double c = 1 / sqrt((t*t) + 1);
     double s = t*c;
     //arr represents matrix P
-    double* arr = malloc(sizeof(double)*4);
+//    double* arr = malloc(sizeof(double)*4);
     arr[0] = i;
     arr[1] = j;
     arr[2] = c;
     arr[3] = s;
-    return arr;
 
 }
 //this method calculates A' = P^t*A*P
@@ -510,40 +655,41 @@ double ** jacobiAlgorithm(double **a, int n){
     int index;
     int iters = 0;//number of iterations
     double epsilon = pow(10,-15);
-    double *p = buildMatrixP(a, n);//p1
+    double *p = malloc(sizeof(double)*4);
+    buildMatrixP(a, n, p);//p1
     double convergenceValueA = calcConvergenceValue(a, n);
     double **matV = buildPfromArray(p,n);//matrix V init (V = p1)
-    printf("\nIteration No. 1\ni = %f, j = %f\n",p[0],p[1]);
+//    printf("\nIteration No. 1\ni = %f, j = %f\n",p[0],p[1]);
     double newConvergenceValue = diagonalStep(a, p, n, convergenceValueA);//calc A = A'
-    printMatrix(a,n,n);
+//    printMatrix(a,n,n);
     converged = isConverged(convergenceValueA, newConvergenceValue, epsilon);//checking convergence
     iters++;
     while((converged == 0) && iters < 100){
         convergenceValueA = newConvergenceValue;
-        p = buildMatrixP(a, n); //pi
-        printf("\nIteration No. %d\ni = %f,  j = %f\n",iters+1,p[0],p[1]);
+        buildMatrixP(a, n,p); //pi
+//        printf("\nIteration No. %d\ni = %f,  j = %f\n",iters+1,p[0],p[1]);
         rotationMultiply(matV, p, n);//V*pi
         newConvergenceValue = diagonalStep(a,p,n, convergenceValueA);//calc A'
-        printf("\nMatrix A': \n");
-        printMatrix(a,n,n);
+//        printf("\nMatrix A': \n");
+//        printMatrix(a,n,n);
         converged = isConverged(convergenceValueA, newConvergenceValue, epsilon);//checking convergence
         iters++;
     }
-    printf("\nEigenValues: \n");
-    for(index = 0;index<n;index++){
-        printf("%.3f, ",a[index][index]);
-    }
-    printf("\nMatrix V:\n");
-    printMatrix(matV,n,n);
-
+//    printf("\nEigenValues: \n");
+//    for(index = 0;index<n;index++){
+//        printf("%.3f, ",a[index][index]);
+//    }
+//    printf("\nMatrix V:\n");
+//    printMatrix(matV,n,n);
+    free(p);
     //attach to matV the eigenvalues as the last row
     matV = realloc(matV, sizeof(double*)*(n+1));
     matV[n] = malloc(n*sizeof(double));
     for(index = 0;index<n;index++){
         matV[n][index] = a[index][index];
     }
-    printf("\nFinal Matrix of jacobi:\n");
-    printMatrix(matV, n+1,n);
+//    printf("\nFinal Matrix of jacobi:\n");
+//    printMatrix(matV, n+1,n);
     return matV;
 }
 void printMatrix(double **a, int rows,int columns){
@@ -570,3 +716,165 @@ void printMatrix(double **a, int rows,int columns){
 }
 
 /**paste HW1 code below here **/
+/** global variables **/
+//double **vecArray;
+//Cluster **clusterArray;
+const int maxIter = 300;
+
+/** functions **/
+
+/*input: Array of pointers of clusters and its length
+output: None, calcs means of all clusters*/
+int reCalcMeans(Cluster **clusterArray,int k) {
+    int changed = 0;  /*"False"*/
+    int i;
+    for (i = 0; i < k; i++) {
+        if (calcMean(clusterArray[i],k) == 1) {
+            changed = 1;
+        }
+    }
+    return changed;
+}
+
+/*calcs mean of specific cluster
+returns 1 if changed, 0 otherwise*/
+int calcMean(Cluster *clust,int d) {
+    int i;
+    int changed = 0; /*"False"*/
+    double *sum, *mean; /*pointers to sum and mean of clust*/
+    double calcVal;
+    sum = clust->sum;
+    mean = clust->mean;
+    for (i = 0; i < d; i++) {
+        calcVal = (sum[i] / (*clust).count);
+        if (mean[i] != calcVal) {
+            changed = 1; /*"True"*/
+        }
+        mean[i] = calcVal;
+    }
+    return changed;
+}
+
+/*adds specific vector to specific cluster*/
+void addVector(Cluster *clust, double *vec, int d) {
+    int i;
+    double *sum;
+    sum = (*clust).sum;
+    for (i = 0; i < d; i++) {
+        sum[i] = sum[i] + vec[i];
+    }
+    (*clust).count++;
+}
+
+/*input: Array of clusters, it's length and a vector.
+output: None. the function find the closest cluster to the vector
+ and insert vector to cluster.*/
+void findCluster(double *vec, Cluster** clusterArray, int k) {
+    /*declarations*/
+    int i;
+    Cluster *minCluster;
+    double minDistance, tempDistance;
+
+    /*default minimum*/
+    minCluster = clusterArray[0];
+    minDistance = distance(vec, minCluster->mean,k);
+
+    /*loop through all clusters, except for 1st*/
+    for (i = 1; i < k; i++) {
+        tempDistance = distance(vec, (clusterArray[i])->mean, k);
+        if (tempDistance < minDistance) {
+            minDistance = tempDistance;
+            minCluster = clusterArray[i];
+        }
+    }
+    addVector(minCluster, vec,k);
+}
+/*init clusters*/
+Cluster ** initClusters(double **vecArray,int n, int k){
+    Cluster** clusterArray;
+    int i,j;
+    clusterArray = malloc(k * sizeof(Cluster*));
+    assert(clusterArray != NULL);
+    for(i=0; i < k;i++){
+        Cluster *cl = malloc(sizeof(Cluster));
+        cl->mean = malloc(k*sizeof(double));
+        cl->sum = calloc(k,sizeof(double ));
+        assert(cl->sum !=NULL && cl->mean != NULL);
+        /*deep copy*/
+        for(j=0;j<k;j++){
+            (cl->mean)[j] = vecArray[i][j];
+        }
+        cl->count = 0;
+        clusterArray[i] = cl;
+    }
+    return clusterArray;
+}
+//print the final centroids
+void printMeans(Cluster **clusterArray,int k) {
+    int i, j;
+    double *temp;
+    /*loop through clusters*/
+    for (i = 0; i < k; i++) {
+        temp = (clusterArray[i])->mean;
+        /*loop through mean array*/
+        for (j = 0; j < k-1; j++) {
+            printf("%0.4f,", temp[j]);
+        }
+        printf("%0.4f\n", temp[k-1]);
+    }
+}
+/*kMeans function*/
+void kMeans(double** vecArray,Cluster** clusterArray, int n, int k) {
+    int i, iterCount, changed;
+    changed = 1;
+    iterCount = 0;
+//    initFromFile(k, clusterArray, vecArray);
+    while (iterCount < maxIter && changed == 1) {
+        /*loop through vectors and insert to clusters*/
+        for (i = 0; i < n; i++) {
+            findCluster(vecArray[i], clusterArray,k);
+        }
+        changed = reCalcMeans(clusterArray,k); /*re-calculate means. returns 1 if mean changed, 0 otherwise*/
+        refreshClusters(clusterArray,k,k); /*init sum and count to zero's:*/
+        iterCount++;
+    }
+}
+/*functions*/
+/*input: Array of clusters and it's length.number of coordinates.
+output: None. All clusters sum and count is initalized to zero*/
+void refreshClusters(Cluster** clusterArray,int k,int d) {
+    int i, j;
+    for (i = 0; i < k; i++) {
+        clusterArray[i]->count = 0;
+        /**loop through array of sum and init all to zero (0)**/
+        for (j = 0; j < d; j++) {
+            (clusterArray[i]->sum)[j] = 0;
+        }
+    }
+}
+/*input: 2 arrays(vectors coordinates)
+output: squared distance between them*/
+double distance(double *x, double *y, int d) {
+    double sum = 0;
+    int i;
+    for (i = 0; i < d; i++) {
+        sum += (x[i] - y[i]) * (x[i] - y[i]);
+    }
+    return sum;
+}
+
+
+/*deallocate memory*/
+void freeMem(double** vecArray, Cluster** clusterArray,int n,int k) {
+    int i;
+    for(i=0;i<k;i++){
+        free(clusterArray[i]->mean);
+        free(clusterArray[i]->sum);
+    }
+    free(clusterArray);
+    for(i=0;i<n;i++){
+        free(vecArray[i]);
+    }
+    free(vecArray);
+}
+
